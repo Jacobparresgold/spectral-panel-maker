@@ -618,13 +618,11 @@ def plot_spectra(spectra, panel, ax=None, save_path=None, sort_by_peak=True):
     return fig, ax
 
 
-def plot_panel(result, ax=None, save_path=None):
+def plot_panel(result, fig=None, ax=None, save_path=None):
     """Heatmap of pairwise distances for a selected panel."""
     sub = result["dist_matrix"]
-    if ax is None:
+    if (fig is None) and (ax is None):
         fig, ax = plt.subplots(figsize=(0.6 * len(sub) + 2.5, 0.6 * len(sub) + 2))
-    else:
-        fig = ax.figure
     im = ax.imshow(sub.values, cmap="viridis_r", vmin=0, vmax=1)
     ax.set_xticks(range(len(sub)))
     ax.set_yticks(range(len(sub)))
@@ -639,6 +637,7 @@ def plot_panel(result, ax=None, save_path=None):
     ax.set_title(f"Panel pairwise distances\nscore={result['score']:.3f}, "
                  f"min dist={result['min_dist']:.3f}")
     fig.tight_layout()
+    fig.set_dpi(150)
     if save_path:
         fig.savefig(save_path, dpi=200, bbox_inches="tight")
     return fig, ax
