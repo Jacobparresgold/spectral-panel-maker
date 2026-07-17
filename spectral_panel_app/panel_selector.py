@@ -637,7 +637,6 @@ def plot_panel(result, fig=None, ax=None, save_path=None):
     ax.set_title(f"Panel pairwise distances\nscore={result['score']:.3f}, "
                  f"min dist={result['min_dist']:.3f}")
     fig.tight_layout()
-    fig.set_dpi(150)
     if save_path:
         fig.savefig(save_path, dpi=200, bbox_inches="tight")
     return fig, ax
