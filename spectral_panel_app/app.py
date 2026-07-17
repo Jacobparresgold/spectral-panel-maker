@@ -19,7 +19,6 @@ from panel_selector import (
     classify_fluorophores,
     select_panel,
     summarize_panel,
-    plot_spectra,
     plot_spectra_interactive,
     plot_panel,
     channel_wavelength_table,
@@ -172,19 +171,17 @@ if result is not None:
 
     st.write(", ".join(f"**{n}**" for n in result["panel"]))
 
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3 = st.tabs([
         "Spectra plot", "Distance heatmap", "Details / export",
-        "Spectra plot 2 (under construction)",
     ])
 
     with tab1:
-        fig, _ = plot_spectra(spectra, result["panel"])
-        st.pyplot(fig, width='stretch')
-        st.download_button(
-            "Download spectra plot (PNG)",
-            data=_save_fig_bytes(fig),
-            file_name=f"panel_spectra_{N}N_{M}M.png",
-            mime="image/png",
+        chan_table = channel_wavelength_table(spectra)
+        fig_i = plot_spectra_interactive(spectra, result["panel"], channel_table=chan_table)
+        st.plotly_chart(fig_i, width='stretch')
+        st.caption(
+            "Hover over the plot to see a shared gray guide line plus the "
+            "wavelength range and each fluorophore's value at that channel."
         )
 
         st.markdown("**Channel wavelength reference**")
@@ -193,7 +190,6 @@ if result is not None:
             "range but not exact per-detector cut points, so ranges below "
             "are evenly divided across each laser's published range."
         )
-        chan_table = channel_wavelength_table(spectra)
         st.dataframe(
             chan_table[["laser", "laser_nm", "detector_index", "low_nm", "high_nm", "center_nm"]],
             width='stretch',
@@ -218,15 +214,5 @@ if result is not None:
             file_name=f"panel_distances_{N}N_{M}M.csv",
             mime="text/csv",
         )
-
-    with tab4:
-        st.caption(
-            "🚧 Under construction -- experimental interactive version of the "
-            "spectra plot. Hover to see a shared gray guide line plus the "
-            "wavelength range and each fluorophore's value at that channel. "
-            "The plot in the first tab remains the primary/stable version."
-        )
-        fig_i = plot_spectra_interactive(spectra, result["panel"], channel_table=chan_table)
-        st.plotly_chart(fig_i, width='stretch')
 else:
     st.info("Set your panel size (N) and dye cap (M) in the sidebar, then click **Find best panel**.")
