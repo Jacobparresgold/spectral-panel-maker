@@ -542,7 +542,7 @@ def plot_spectra_interactive(spectra, panel, channel_table=None, sort_by_peak=Tr
     for i, name in enumerate(names):
         fig.add_trace(go.Scatter(
             x=x, y=spectra[name].to_numpy(), mode="lines", name=name,
-            line=dict(width=2, color=colors[i]),
+            line=dict(width=3, color=colors[i]),
             hovertemplate="%{y:.1f}<extra></extra>",
         ))
 
@@ -550,7 +550,7 @@ def plot_spectra_interactive(spectra, panel, channel_table=None, sort_by_peak=Tr
     prefixes = [ch[0] for ch in channels]
     for i in range(1, len(prefixes)):
         if prefixes[i] != prefixes[i - 1]:
-            fig.add_vline(x=i - 0.5, line=dict(color="gray", width=1, dash="dash"), opacity=0.5)
+            fig.add_vline(x=i - 0.5, line=dict(color="black", width=3, dash="solid"))
 
     fig.update_layout(
         hovermode="x unified",
@@ -593,7 +593,7 @@ def plot_spectra(spectra, panel, ax=None, save_path=None, sort_by_peak=True):
     colors = plt.get_cmap("turbo", len(names))
 
     for i, name in enumerate(names):
-        ax.plot(x, spectra[name].to_numpy(), label=name, color=colors(i), linewidth=1.5)
+        ax.plot(x, spectra[name].to_numpy(), label=name, color=colors(i), linewidth=2)
 
     # Light vertical guides between laser groups (V/B/Y/R), detected from
     # the channel name prefix rather than hard-coded, so this still works
@@ -601,7 +601,7 @@ def plot_spectra(spectra, panel, ax=None, save_path=None, sort_by_peak=True):
     prefixes = [ch[0] for ch in channels]
     boundaries = [i for i in range(1, len(prefixes)) if prefixes[i] != prefixes[i - 1]]
     for b in boundaries:
-        ax.axvline(b - 0.5, color="gray", linewidth=0.8, linestyle="--", alpha=0.6)
+        ax.axvline(b - 0.5, color="black", linewidth=2, linestyle="-")
 
     # Show every other tick label to avoid crowding
     ax.set_xticks(x)
