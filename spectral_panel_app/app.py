@@ -197,7 +197,7 @@ if result is not None:
 
     with tab2:
         fig2, _ = plot_panel(result)
-        st.pyplot(fig2, width='stretch')
+        st.pyplot(fig2, width=400)
         st.download_button(
             "Download heatmap (PNG)",
             data=_save_fig_bytes(fig2),
