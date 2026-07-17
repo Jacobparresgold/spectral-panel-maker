@@ -453,7 +453,7 @@ def plot_spectra(spectra, panel, ax=None, save_path=None, sort_by_peak=True):
     colors = plt.get_cmap("turbo", len(names))
 
     for i, name in enumerate(names):
-        ax.plot(x, spectra[name].to_numpy(), label=name, color=colors(i), linewidth=1.5)
+        ax.plot(x, spectra[name].to_numpy(), label=name, color=colors(i), linewidth=2)
 
     # Light vertical guides between laser groups (V/B/Y/R), detected from
     # the channel name prefix rather than hard-coded, so this still works
@@ -461,7 +461,7 @@ def plot_spectra(spectra, panel, ax=None, save_path=None, sort_by_peak=True):
     prefixes = [ch[0] for ch in channels]
     boundaries = [i for i in range(1, len(prefixes)) if prefixes[i] != prefixes[i - 1]]
     for b in boundaries:
-        ax.axvline(b - 0.5, color="gray", linewidth=0.8, linestyle="--", alpha=0.6)
+        ax.axvline(b - 0.5, color="black", linewidth=1, linestyle="-", alpha=1)
 
     # Show every other tick label to avoid crowding
     ax.set_xticks(x)
