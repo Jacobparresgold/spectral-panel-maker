@@ -461,7 +461,7 @@ def plot_spectra(spectra, panel, ax=None, save_path=None, sort_by_peak=True):
     prefixes = [ch[0] for ch in channels]
     boundaries = [i for i in range(1, len(prefixes)) if prefixes[i] != prefixes[i - 1]]
     for b in boundaries:
-        ax.axvline(b - 0.5, color="black", linewidth=1, linestyle="-", alpha=1)
+        ax.axvline(b - 0.5, color="black", linewidth=3, linestyle="-", alpha=1)
 
     # Show every other tick label to avoid crowding
     ax.set_xticks(x)
