@@ -19,6 +19,7 @@ with many random restarts. Small cases are solved exactly by brute force.
 import itertools
 import math
 import random
+import re
 
 import numpy as np
 import pandas as pd
@@ -83,6 +84,68 @@ def sort_names_by_peak_channel(spectra, names):
     channel_order = {ch: i for i, ch in enumerate(spectra.index)}
     peak_channel = {n: spectra[n].idxmax() for n in names}
     return sorted(names, key=lambda n: channel_order[peak_channel[n]])
+
+
+# --------------------------------------------------------------------------
+# 1b. Channel wavelength reference
+#
+# Beckman publishes each laser's detector count and overall wavelength
+# range (e.g. "Violet 405 nm: 20 detectors, 420-950 nm") but not the exact
+# per-detector cut points, so DEFAULT_LASER_CONFIG's ranges are divided
+# evenly across each laser's detector count as an APPROXIMATION. Good
+# enough to orient a viewer (e.g. "R4 is roughly in the 700s nm"), not
+# a substitute for the instrument's real filter specs if exact bandpass
+# edges matter for your analysis.
+# --------------------------------------------------------------------------
+
+DEFAULT_LASER_CONFIG = {
+    "V": {"label": "Violet",       "laser_nm": 405, "n_detectors": 20, "range_nm": (420, 950)},
+    "B": {"label": "Blue",         "laser_nm": 488, "n_detectors": 16, "range_nm": (498, 950)},
+    "Y": {"label": "Yellow-Green", "laser_nm": 561, "n_detectors": 12, "range_nm": (567, 950)},
+    "R": {"label": "Red",          "laser_nm": 638, "n_detectors": 10, "range_nm": (649, 950)},
+}
+
+
+def channel_wavelength_table(spectra, laser_config=None):
+    """
+    Build a per-channel wavelength-range reference table for the channels
+    in `spectra.index` (e.g. "V1", "V2", ..., "B1", ...), based on
+    `laser_config` (defaults to DEFAULT_LASER_CONFIG, the CytoFLEX mosaic
+    V-B-Y-R spec). Ranges are evenly divided across each laser's published
+    range -- see module note above re: approximation.
+
+    Returns a DataFrame indexed by channel name with columns:
+    laser, laser_nm, detector_index, low_nm, high_nm, center_nm
+    """
+    laser_config = laser_config or DEFAULT_LASER_CONFIG
+    rows = []
+    for ch in spectra.index:
+        m = re.match(r"([A-Za-z]+)(\d+)", str(ch))
+        if not m:
+            rows.append({"channel": ch, "laser": None, "laser_nm": None,
+                         "detector_index": None, "low_nm": None, "high_nm": None,
+                         "center_nm": None})
+            continue
+        prefix, num = m.group(1).upper(), int(m.group(2))
+        cfg = laser_config.get(prefix)
+        if cfg is None:
+            rows.append({"channel": ch, "laser": prefix, "laser_nm": None,
+                         "detector_index": num, "low_nm": None, "high_nm": None,
+                         "center_nm": None})
+            continue
+        lo, hi = cfg["range_nm"]
+        edges = np.linspace(lo, hi, cfg["n_detectors"] + 1)
+        low, high = edges[num - 1], edges[num]
+        rows.append({
+            "channel": ch,
+            "laser": cfg["label"],
+            "laser_nm": cfg["laser_nm"],
+            "detector_index": num,
+            "low_nm": round(float(low), 1),
+            "high_nm": round(float(high), 1),
+            "center_nm": round(float((low + high) / 2), 1),
+        })
+    return pd.DataFrame(rows).set_index("channel")
 
 
 # --------------------------------------------------------------------------
@@ -429,6 +492,83 @@ def summarize_panel(result):
 # 6b. Extras: visualization + alternative panels
 # --------------------------------------------------------------------------
 
+def _turbo_hex_colors(n):
+    """Sample n evenly-spaced colors from matplotlib's 'turbo' colormap as hex strings."""
+    cmap = plt.get_cmap("turbo", n)
+    return [
+        "#%02x%02x%02x" % tuple(int(round(c * 255)) for c in cmap(i)[:3])
+        for i in range(n)
+    ]
+
+
+def plot_spectra_interactive(spectra, panel, channel_table=None, sort_by_peak=True):
+    """
+    UNDER CONSTRUCTION: interactive (Plotly) version of plot_spectra().
+    Hovering shows a shared gray vertical guide line across all traces
+    (via Plotly's "spike lines") plus the wavelength range of the
+    channel under the cursor, alongside each fluorophore's value there.
+
+    Returns a plotly.graph_objects.Figure -- render with st.plotly_chart(fig).
+    """
+    import plotly.graph_objects as go
+
+    names = sort_names_by_peak_channel(spectra, panel) if sort_by_peak else list(panel)
+    channels = spectra.index.tolist()
+    x = list(range(len(channels)))
+
+    if channel_table is None:
+        channel_table = channel_wavelength_table(spectra)
+    low = channel_table.loc[channels, "low_nm"].to_numpy()
+    high = channel_table.loc[channels, "high_nm"].to_numpy()
+    range_text = [
+        f"{lo:.0f}\u2013{hi:.0f} nm" if not np.isnan(lo) else "n/a"
+        for lo, hi in zip(low, high)
+    ]
+
+    colors = _turbo_hex_colors(len(names))
+    fig = go.Figure()
+
+    # Invisible reference trace (sits below the visible y-range) purely so
+    # the unified hover box also shows the wavelength range of the channel
+    # under the cursor, in addition to each fluorophore's per-trace value.
+    fig.add_trace(go.Scatter(
+        x=x, y=[-5] * len(x), mode="lines", name="Wavelength range",
+        line=dict(width=0),
+        customdata=range_text,
+        hovertemplate="%{customdata}<extra></extra>",
+        showlegend=False,
+    ))
+
+    for i, name in enumerate(names):
+        fig.add_trace(go.Scatter(
+            x=x, y=spectra[name].to_numpy(), mode="lines", name=name,
+            line=dict(width=2, color=colors[i]),
+            hovertemplate="%{y:.1f}<extra></extra>",
+        ))
+
+    # Laser-group boundaries (V/B/Y/R), detected from channel-name prefix.
+    prefixes = [ch[0] for ch in channels]
+    for i in range(1, len(prefixes)):
+        if prefixes[i] != prefixes[i - 1]:
+            fig.add_vline(x=i - 0.5, line=dict(color="gray", width=1, dash="dash"), opacity=0.5)
+
+    fig.update_layout(
+        hovermode="x unified",
+        xaxis=dict(
+            title="Channel",
+            tickmode="array", tickvals=x, ticktext=channels, tickangle=90,
+            showspikes=True, spikemode="across", spikesnap="cursor",
+            spikecolor="rgba(120,120,120,0.5)", spikethickness=2, spikedash="solid",
+            range=[-0.5, len(channels) - 0.5],
+        ),
+        yaxis=dict(title="Normalized signal (% of peak)", range=[0, 105]),
+        title=f"Spectral signatures (interactive) -- {len(names)}-color panel",
+        height=550,
+        margin=dict(r=160),
+    )
+    return fig
+
+
 def plot_spectra(spectra, panel, ax=None, save_path=None, sort_by_peak=True):
     """
     Overlapping line chart of the raw spectral signatures for the
@@ -453,7 +593,7 @@ def plot_spectra(spectra, panel, ax=None, save_path=None, sort_by_peak=True):
     colors = plt.get_cmap("turbo", len(names))
 
     for i, name in enumerate(names):
-        ax.plot(x, spectra[name].to_numpy(), label=name, color=colors(i), linewidth=2)
+        ax.plot(x, spectra[name].to_numpy(), label=name, color=colors(i), linewidth=1.5)
 
     # Light vertical guides between laser groups (V/B/Y/R), detected from
     # the channel name prefix rather than hard-coded, so this still works
@@ -461,7 +601,7 @@ def plot_spectra(spectra, panel, ax=None, save_path=None, sort_by_peak=True):
     prefixes = [ch[0] for ch in channels]
     boundaries = [i for i in range(1, len(prefixes)) if prefixes[i] != prefixes[i - 1]]
     for b in boundaries:
-        ax.axvline(b - 0.5, color="black", linewidth=3, linestyle="-", alpha=1)
+        ax.axvline(b - 0.5, color="gray", linewidth=0.8, linestyle="--", alpha=0.6)
 
     # Show every other tick label to avoid crowding
     ax.set_xticks(x)
